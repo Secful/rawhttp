@@ -57,6 +57,13 @@ final class GZipUncompressorOutputStream extends DecodingOutputStream {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+                try {
+                    //pending writes may be stuck waiting on the input pipe, so we should close everything here.
+                    encodedBytesReceiver.close();
+                    encodedBytesSink.close();
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                }
             }
         });
     }
