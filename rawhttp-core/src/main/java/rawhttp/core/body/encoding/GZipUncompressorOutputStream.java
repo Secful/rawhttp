@@ -18,10 +18,14 @@ import java.util.zip.GZIPInputStream;
 
 final class GZipUncompressorOutputStream extends DecodingOutputStream {
 
+    private final static ExecutorService EXECUTOR_SERVICE = Executors.newCachedThreadPool();
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(EXECUTOR_SERVICE::shutdownNow));
+    }
+
     private final PipedInputStream encodedBytesReceiver;
     private final PipedOutputStream encodedBytesSink;
     private final Bool readerStarted = new Bool();
-    private final ExecutorService executorService;
     private final int bufferSize;
     private Future<?> readerExecution;
     private final Thread writerThread;
@@ -32,7 +36,6 @@ final class GZipUncompressorOutputStream extends DecodingOutputStream {
         this.bufferSize = bufferSize;
         this.encodedBytesReceiver = new PipedInputStream();
         this.encodedBytesSink = new PipedOutputStream();
-        this.executorService = Executors.newSingleThreadExecutor();
         this.writerThread = Thread.currentThread();
     }
 
@@ -59,7 +62,7 @@ final class GZipUncompressorOutputStream extends DecodingOutputStream {
     }
 
     private void startReader() {
-        readerExecution = executorService.submit(() -> {
+        readerExecution = EXECUTOR_SERVICE.submit(() -> {
             int bytesRead;
             byte[] buffer = new byte[bufferSize];
             try (GZIPInputStream decoderStream = new GZIPInputStream(encodedBytesReceiver)) {
@@ -105,8 +108,6 @@ final class GZipUncompressorOutputStream extends DecodingOutputStream {
         } finally {
             closeQuietly(encodedBytesReceiver);
             closeQuietly(encodedBytesSink);
-
-            executorService.shutdownNow();
         }
     }
 
