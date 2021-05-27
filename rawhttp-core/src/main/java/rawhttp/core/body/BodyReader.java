@@ -9,7 +9,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.util.Iterator;
@@ -113,17 +112,8 @@ public abstract class BodyReader implements Writable, Closeable {
      *                                  by the {@link HttpBodyEncodingRegistry}.
      */
     public void writeDecodedTo(OutputStream out, int bufferSize) throws IOException {
-        DecodingOutputStream decodedStream = framedBody.getBodyDecoder().decoding(out);
-        try {
+        try (DecodingOutputStream decodedStream = framedBody.getBodyDecoder().decoding(out)) {
             framedBody.getBodyConsumer().consumeDataInto(asRawStream(), decodedStream, bufferSize);
-            decodedStream.close();
-        } catch (InterruptedIOException e) {
-            // this thread is interrupted when there's an Exception in the consumer Thread...
-            // closing the stream should cause the original Exception to propagate to the caller
-            decodedStream.close();
-
-            // if close doesn't throw, we need to re-throw the error as things are not fine!
-            throw e;
         }
     }
 
@@ -207,8 +197,19 @@ public abstract class BodyReader implements Writable, Closeable {
      * @throws IOException if an error occurs while consuming the message body
      */
     public byte[] decodeBody() throws IOException {
+        return decodeBody(BodyConsumer.DEFAULT_BUFFER_SIZE);
+    }
+
+    /**
+     * Unframe and decode the HTTP message's body.
+     *
+     * @param bufferSize size of the buffer to use for writing, if possible
+     * @return the unframed, decoded message body
+     * @throws IOException if an error occurs while consuming the message body
+     */
+    public byte[] decodeBody(int bufferSize) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        writeDecodedTo(out, BodyConsumer.DEFAULT_BUFFER_SIZE);
+        writeDecodedTo(out, bufferSize);
         return out.toByteArray();
     }
 
@@ -220,7 +221,18 @@ public abstract class BodyReader implements Writable, Closeable {
      * @throws IOException if an error occurs while consuming the message body
      */
     public String decodeBodyToString(Charset charset) throws IOException {
-        return new String(decodeBody(), charset);
+        return decodeBodyToString(charset, BodyConsumer.DEFAULT_BUFFER_SIZE);
     }
 
+    /**
+     * Unframe and decode the HTTP message's body, then turn it into a String using the given charset.
+     *
+     * @param charset to use to convert the body into a String
+     * @param bufferSize size of the buffer to use for writing, if possible
+     * @return the decoded message body as a String
+     * @throws IOException if an error occurs while consuming the message body
+     */
+    public String decodeBodyToString(Charset charset, int bufferSize) throws IOException {
+        return new String(decodeBody(bufferSize), charset);
+    }
 }
