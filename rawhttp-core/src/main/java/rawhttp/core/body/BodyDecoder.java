@@ -59,17 +59,15 @@ public class BodyDecoder {
 
         DecodingOutputStream decoderStream = new DecodingOutputStream(out);
 
-        if (decoders.isEmpty()) {
-            return decoderStream;
-        }
+        if (!decoders.isEmpty()) {
+            if (decoders.get(decoders.size() - 1).encodingName().equalsIgnoreCase("chunked")) {
+                // when the chunked encoding is used to frame the message, we don't need to to decode its contents
+                decoders.remove(decoders.size() - 1);
+            }
 
-        if (decoders.get(decoders.size() - 1).encodingName().equalsIgnoreCase("chunked")) {
-            // when the chunked encoding is used to frame the message, we don't need to to decode its contents
-            decoders.remove(decoders.size() - 1);
-        }
-
-        for (HttpMessageDecoder decoder : decoders) {
-            decoderStream = decoder.decode(decoderStream);
+            for (HttpMessageDecoder decoder : decoders) {
+                decoderStream = decoder.decode(decoderStream);
+            }
         }
 
         return decoderStream;
